@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import './App.css'
 
 const STORE_NAME = 'MATAZU STORE'
@@ -8,6 +8,9 @@ const categories = ['All', 'Power Banks', 'Chargers', 'Audio', 'Accessories', 'S
 const deliveryCoverage = ['Katsina', 'Kano', 'Nationwide Nigeria']
 const deliveryStateChoices = ['Katsina', 'Kano', 'Other State'] as const
 const orderStatuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] as const
+const DEMO_ADMIN_USERNAME = 'admin'
+const DEMO_ADMIN_EMAIL = 'admin@matazu.store'
+const DEMO_ADMIN_PASSWORD = 'MatazuDemo2026'
 
 const features = [
   { icon: '🚚', title: 'Nationwide delivery', copy: 'We bring your tech to your doorstep.' },
@@ -17,7 +20,7 @@ const features = [
 ]
 
 type ProductStatus = 'Active' | 'Low stock' | 'Out of stock'
-type View = 'home' | 'details' | 'checkout' | 'confirmation' | 'admin'
+type View = 'home' | 'details' | 'checkout' | 'confirmation' | 'customer-login' | 'customer-signup' | 'customer-forgot-password' | 'admin-login' | 'admin'
 type AdminTab = 'dashboard' | 'products' | 'orders'
 type OrderStatus = (typeof orderStatuses)[number]
 type DeliveryStateChoice = (typeof deliveryStateChoices)[number]
@@ -426,7 +429,20 @@ function App() {
   const [cart, setCart] = useState<Record<number, number>>({})
   const [stockNotice, setStockNotice] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
-  const [view, setView] = useState<View>('home')
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => sessionStorage.getItem('matazu-admin-auth') === 'true')
+  const [view, setView] = useState<View>(() => {
+    const path = window.location.pathname
+    if (path === '/admin') {
+      if (sessionStorage.getItem('matazu-admin-auth') === 'true') return 'admin'
+      window.history.replaceState(null, '', '/admin-login')
+      return 'admin-login'
+    }
+    if (path === '/admin-login') return 'admin-login'
+    if (path === '/customer-login') return 'customer-login'
+    if (path === '/customer-signup') return 'customer-signup'
+    if (path === '/customer-forgot-password') return 'customer-forgot-password'
+    return 'home'
+  })
   const [products, setProducts] = useState<Product[]>(starterProducts)
   const [selectedProductId, setSelectedProductId] = useState<number | null>(starterProducts[0]?.id ?? null)
   const [orderForm, setOrderForm] = useState<OrderFormState>(initialOrderForm)
@@ -437,6 +453,30 @@ function App() {
   const [adminProductForm, setAdminProductForm] = useState<AdminProductFormState>(defaultAdminForm)
   const [editingProductId, setEditingProductId] = useState<number | null>(null)
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(starterOrders[0]?.id ?? null)
+  const [authIdentifier, setAuthIdentifier] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authName, setAuthName] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authMessage, setAuthMessage] = useState('')
+
+  useEffect(() => {
+    function handlePopState() {
+      const path = window.location.pathname
+      if (path === '/admin' && sessionStorage.getItem('matazu-admin-auth') !== 'true') {
+        window.history.replaceState(null, '', '/admin-login')
+        setView('admin-login')
+        return
+      }
+      setView(path === '/admin' ? 'admin'
+        : path === '/admin-login' ? 'admin-login'
+          : path === '/customer-login' ? 'customer-login'
+            : path === '/customer-signup' ? 'customer-signup'
+              : path === '/customer-forgot-password' ? 'customer-forgot-password'
+                : 'home')
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   const cartCount = Object.values(cart).reduce((total, quantity) => total + quantity, 0)
   const filteredProducts = useMemo(() => products.filter((product) => {
@@ -460,6 +500,78 @@ function App() {
   const totalOrders = adminOrders.length
   const pendingOrders = adminOrders.filter((order) => order.status === 'Pending').length
   const totalSales = adminOrders.reduce((sum, order) => sum + order.total, 0)
+
+  function navigateTo(nextView: View, path: string) {
+    window.history.pushState(null, '', path)
+    setView(nextView)
+    setAuthError('')
+    setAuthMessage('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function openCustomerLogin() {
+    navigateTo('customer-login', '/customer-login')
+  }
+
+  function openAdminLogin() {
+    if (isAdminAuthenticated) {
+      setAdminTab('dashboard')
+      navigateTo('admin', '/admin')
+      return
+    }
+    navigateTo('admin-login', '/admin-login')
+  }
+
+  function handleCustomerLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!authIdentifier.trim() || !authPassword) {
+      setAuthError('Enter your email or phone number and password to continue.')
+      return
+    }
+    sessionStorage.setItem('matazu-customer-auth', 'demo')
+    navigateTo('home', '/')
+  }
+
+  function handleCustomerSignup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!authName.trim() || !authIdentifier.trim() || authPassword.length < 6) {
+      setAuthError('Enter your name, email or phone number, and a password with at least 6 characters.')
+      return
+    }
+    sessionStorage.setItem('matazu-customer-auth', 'demo')
+    setAuthMessage('Your demo account is ready. Taking you to the store…')
+    navigateTo('home', '/')
+  }
+
+  function handleForgotPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!authIdentifier.trim()) {
+      setAuthError('Enter your email or phone number to continue.')
+      return
+    }
+    setAuthError('')
+    setAuthMessage('Password reset is a demo only; no message was sent.')
+  }
+
+  function handleAdminLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const username = authIdentifier.trim().toLowerCase()
+    if ((username !== DEMO_ADMIN_USERNAME && username !== DEMO_ADMIN_EMAIL) || authPassword !== DEMO_ADMIN_PASSWORD) {
+      setAuthError('That demo username/email or password is incorrect.')
+      return
+    }
+    sessionStorage.setItem('matazu-admin-auth', 'true')
+    setIsAdminAuthenticated(true)
+    setAdminTab('dashboard')
+    navigateTo('admin', '/admin')
+  }
+
+  function handleAdminLogout() {
+    sessionStorage.removeItem('matazu-admin-auth')
+    setIsAdminAuthenticated(false)
+    setAdminTab('dashboard')
+    navigateTo('admin-login', '/admin-login')
+  }
 
   function addToCart(productId: number, quantity = 1) {
     const product = products.find((item) => item.id === productId)
@@ -525,13 +637,12 @@ function App() {
   function goHome() {
     setView('home')
     setFormError('')
+    if (window.location.pathname !== '/') window.history.pushState(null, '', '/')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function goToAdmin() {
-    setView('admin')
-    setAdminTab('dashboard')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    openAdminLogin()
   }
 
   function openProductsSection() {
@@ -942,7 +1053,7 @@ function App() {
 
         <footer className="site-footer">
           <div className="footer-main"><div className="footer-brand"><a className="brand footer-logo" href="#home"><span className="brand-mark">M</span><span>{STORE_NAME}</span></a><p>Good gear for real life.<br />Made a little more accessible.</p></div><div className="footer-links"><div><h2>Explore</h2><a href="#categories">Categories</a><a href="#products">All products</a><a href="#about">Our story</a></div><div><h2>Say hello</h2><a href="mailto:hello@matazustore.com">Email us</a><a href="tel:+2348000000000">Customer support</a><span>{STORE_LOCATION}</span></div></div></div>
-          <div className="footer-bottom"><span>© 2025 {STORE_NAME}</span><span>{STORE_COVERAGE}</span><button type="button" className="footer-admin-link" onClick={goToAdmin}>Admin Dashboard</button></div>
+          <div className="footer-bottom"><span>© 2025 {STORE_NAME}</span><span>{STORE_COVERAGE}</span><button type="button" className="footer-admin-link" onClick={goToAdmin}>Admin Login</button><button type="button" className="footer-admin-link" onClick={openCustomerLogin}>Customer Login</button></div>
         </footer>
       </>
     )
@@ -1206,6 +1317,7 @@ function App() {
           </div>
           <div className="admin-top-actions">
             <button type="button" className="button button-primary" onClick={goHome}>Back to Store</button>
+            <button type="button" className="admin-logout-button" onClick={handleAdminLogout}>Logout</button>
           </div>
         </header>
 
@@ -1459,6 +1571,115 @@ function App() {
     )
   }
 
+  function renderAuthPage() {
+    const adminLogin = view === 'admin-login'
+    const customerSignup = view === 'customer-signup'
+    const forgotPassword = view === 'customer-forgot-password'
+    const title = adminLogin ? 'Admin Login' : customerSignup ? 'Create your account' : forgotPassword ? 'Reset your password' : 'Welcome back'
+    const description = adminLogin
+      ? 'Sign in to manage the MATAZU STORE dashboard.'
+      : customerSignup
+        ? 'Join MATAZU STORE for a simple local demo experience.'
+        : forgotPassword
+          ? 'Enter your email or phone number to continue.'
+          : 'Sign in to explore your MATAZU STORE account.'
+    const submitHandler = adminLogin ? handleAdminLogin
+      : customerSignup ? handleCustomerSignup
+        : forgotPassword ? handleForgotPassword
+          : handleCustomerLogin
+
+    return (
+      <main className="auth-page">
+        <div className="auth-topbar">
+          <button type="button" className="brand auth-brand" onClick={goHome}>
+            <span className="brand-mark">M</span>
+            <span>{STORE_NAME}</span>
+          </button>
+          <button type="button" className="auth-store-link" onClick={goHome}>Back to store</button>
+        </div>
+        <section className="auth-card" aria-labelledby="auth-title">
+          <div className="auth-card-heading">
+            <span className="section-kicker">{adminLogin ? 'ADMIN ACCESS' : 'YOUR ACCOUNT'}</span>
+            <h1 id="auth-title">{title}</h1>
+            <p>{description}</p>
+          </div>
+
+          {adminLogin && (
+            <aside className="demo-credentials" aria-label="Admin demo credentials">
+              <strong>DEMO ONLY — not a production account</strong>
+              <span>Username: <b>{DEMO_ADMIN_USERNAME}</b> or <b>{DEMO_ADMIN_EMAIL}</b></span>
+              <span>Password: <b>{DEMO_ADMIN_PASSWORD}</b></span>
+            </aside>
+          )}
+
+          <form className="auth-form" onSubmit={submitHandler}>
+            {authError && <p className="auth-feedback auth-feedback-error" role="alert">{authError}</p>}
+            {authMessage && <p className="auth-feedback" role="status">{authMessage}</p>}
+            {customerSignup && (
+              <label className="auth-field">
+                <span>Full name</span>
+                <input type="text" autoComplete="name" value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Your name" required />
+              </label>
+            )}
+            {!forgotPassword && (
+              <label className="auth-field">
+                <span>{adminLogin ? 'Email or username' : 'Email or phone'}</span>
+                <input
+                  type="text"
+                  autoComplete="username"
+                  value={authIdentifier}
+                  onChange={(event) => setAuthIdentifier(event.target.value)}
+                  placeholder={adminLogin ? 'admin or admin@matazu.store' : 'you@example.com or phone number'}
+                  required
+                />
+              </label>
+            )}
+            {forgotPassword && (
+              <label className="auth-field">
+                <span>Email or phone</span>
+                <input type="text" autoComplete="email" value={authIdentifier} onChange={(event) => setAuthIdentifier(event.target.value)} placeholder="you@example.com or phone number" required />
+              </label>
+            )}
+            {!forgotPassword && (
+              <label className="auth-field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  autoComplete={customerSignup ? 'new-password' : 'current-password'}
+                  minLength={customerSignup ? 6 : undefined}
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  placeholder={customerSignup ? 'At least 6 characters' : 'Enter your password'}
+                  required
+                />
+              </label>
+            )}
+            <button type="submit" className="button button-primary auth-submit">
+              {adminLogin ? 'Open Admin Dashboard' : customerSignup ? 'Create account' : forgotPassword ? 'Continue' : 'Login'}
+            </button>
+          </form>
+
+          <div className="auth-links">
+            {!adminLogin && !customerSignup && !forgotPassword && (
+              <>
+                <button type="button" onClick={() => navigateTo('customer-forgot-password', '/customer-forgot-password')}>Forgot password?</button>
+                <span>New to MATAZU? <button type="button" onClick={() => navigateTo('customer-signup', '/customer-signup')}>Sign up</button></span>
+              </>
+            )}
+            {customerSignup && <span>Already have an account? <button type="button" onClick={openCustomerLogin}>Login</button></span>}
+            {forgotPassword && <button type="button" onClick={openCustomerLogin}>Back to Customer Login</button>}
+            {adminLogin && <button type="button" onClick={openCustomerLogin}>Customer Login</button>}
+          </div>
+          {!adminLogin && <p className="auth-demo-note">Demo/local authentication only. No account data is sent to a server.</p>}
+        </section>
+      </main>
+    )
+  }
+
+  if (view === 'customer-login' || view === 'customer-signup' || view === 'customer-forgot-password' || view === 'admin-login') {
+    return renderAuthPage()
+  }
+
   return (
     <>
       <header className="site-header">
@@ -1473,7 +1694,8 @@ function App() {
             <a href="#about">About</a>
           </nav>
           <div className="header-actions">
-            <button type="button" className="admin-link" onClick={goToAdmin}>Admin Dashboard</button>
+            <button type="button" className="customer-login-link" onClick={openCustomerLogin}>Customer Login</button>
+            <button type="button" className="admin-link" onClick={goToAdmin}>Admin Login</button>
             <button type="button" className="cart-button" onClick={() => setCartOpen((current) => !current)} aria-label="Open cart">
               <CartIcon />
               <span>{cartCount}</span>
@@ -1552,7 +1774,7 @@ function App() {
         </button>
         <button type="button" className={`mobile-link ${view === 'admin' ? 'mobile-nav-active' : ''}`} onClick={goToAdmin}>
           <span aria-hidden="true">⚙</span>
-          <span>Admin</span>
+          <span>Admin Login</span>
         </button>
         <button type="button" className="mobile-link" onClick={() => setCartOpen(true)}>
           <span className="mobile-cart-icon" aria-hidden="true">
