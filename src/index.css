@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --green: #087f46;
+  --green-dark: #12452a;
+  --ink: #1c2b20;
+  --muted: #747e71;
+  --paper: #fffefa;
+  --line: #e8e9e1;
+  --display: 'Manrope', 'Trebuchet MS', sans-serif;
+  --body: 'DM Sans', 'Trebuchet MS', sans-serif;
+  font-family: var(--body);
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  scroll-behavior: smooth;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button, input { font: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid #48a96a; outline-offset: 3px; }
+::selection { color: #fff; background: var(--green); }
+
+#root { min-height: 100vh; width: 100%; }
