@@ -430,17 +430,31 @@ function App() {
   const [stockNotice, setStockNotice] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => sessionStorage.getItem('matazu-admin-auth') === 'true')
+  const [isCustomerAuthenticated, setIsCustomerAuthenticated] = useState(() => sessionStorage.getItem('matazu-customer-auth') === 'demo')
   const [view, setView] = useState<View>(() => {
     const path = window.location.pathname
-    if (path === '/admin') {
-      if (sessionStorage.getItem('matazu-admin-auth') === 'true') return 'admin'
+    const isAdminLoggedIn = sessionStorage.getItem('matazu-admin-auth') === 'true'
+    const isCustomerLoggedIn = sessionStorage.getItem('matazu-customer-auth') === 'demo'
+
+    if (path === '/admin' || path === '/admin-login') {
+      if (isAdminLoggedIn) {
+        if (path !== '/admin') window.history.replaceState(null, '', '/admin')
+        return 'admin'
+      }
       window.history.replaceState(null, '', '/admin-login')
       return 'admin-login'
     }
-    if (path === '/admin-login') return 'admin-login'
-    if (path === '/customer-login') return 'customer-login'
-    if (path === '/customer-signup') return 'customer-signup'
-    if (path === '/customer-forgot-password') return 'customer-forgot-password'
+
+    if (path === '/customer-login' || path === '/customer-signup' || path === '/customer-forgot-password') {
+      if (isCustomerLoggedIn) {
+        window.history.replaceState(null, '', '/')
+        return 'home'
+      }
+      if (path === '/customer-signup') return 'customer-signup'
+      if (path === '/customer-forgot-password') return 'customer-forgot-password'
+      return 'customer-login'
+    }
+
     return 'home'
   })
   const [products, setProducts] = useState<Product[]>(starterProducts)
@@ -462,17 +476,33 @@ function App() {
   useEffect(() => {
     function handlePopState() {
       const path = window.location.pathname
-      if (path === '/admin' && sessionStorage.getItem('matazu-admin-auth') !== 'true') {
+      const isAdminLoggedIn = sessionStorage.getItem('matazu-admin-auth') === 'true'
+      const isCustomerLoggedIn = sessionStorage.getItem('matazu-customer-auth') === 'demo'
+
+      if (path === '/admin' || path === '/admin-login') {
+        if (isAdminLoggedIn) {
+          if (path !== '/admin') window.history.replaceState(null, '', '/admin')
+          setView('admin')
+          return
+        }
         window.history.replaceState(null, '', '/admin-login')
         setView('admin-login')
         return
       }
-      setView(path === '/admin' ? 'admin'
-        : path === '/admin-login' ? 'admin-login'
-          : path === '/customer-login' ? 'customer-login'
-            : path === '/customer-signup' ? 'customer-signup'
-              : path === '/customer-forgot-password' ? 'customer-forgot-password'
-                : 'home')
+
+      if (path === '/customer-login' || path === '/customer-signup' || path === '/customer-forgot-password') {
+        if (isCustomerLoggedIn) {
+          window.history.replaceState(null, '', '/')
+          setView('home')
+          return
+        }
+        setView(path === '/customer-signup' ? 'customer-signup'
+          : path === '/customer-forgot-password' ? 'customer-forgot-password'
+            : 'customer-login')
+        return
+      }
+
+      setView('home')
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -510,6 +540,10 @@ function App() {
   }
 
   function openCustomerLogin() {
+    if (isCustomerAuthenticated) {
+      navigateTo('home', '/')
+      return
+    }
     navigateTo('customer-login', '/customer-login')
   }
 
@@ -529,6 +563,7 @@ function App() {
       return
     }
     sessionStorage.setItem('matazu-customer-auth', 'demo')
+    setIsCustomerAuthenticated(true)
     navigateTo('home', '/')
   }
 
@@ -539,6 +574,7 @@ function App() {
       return
     }
     sessionStorage.setItem('matazu-customer-auth', 'demo')
+    setIsCustomerAuthenticated(true)
     setAuthMessage('Your demo account is ready. Taking you to the store…')
     navigateTo('home', '/')
   }
